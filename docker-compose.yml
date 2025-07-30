@@ -15,6 +15,22 @@ services:
       - minio_data:/data
     restart: always
 
+  sentry-migrate:
+    image: getsentry/sentry:25.7.0
+    env_file:
+      - .env.dev
+    environment:
+      SENTRY_SECRET_KEY: 'iDW7HMa2qgFd1szNvgMMaIy2STaolSFK'
+      DATABASE_URL: postgres://postgres:password@pgvector:5432/sentry
+      SENTRY_REDIS_HOST: redis
+      SENTRY_REDIS_PORT: 6379
+    depends_on:
+      - pgvector
+      - redis
+    restart: "no"
+    command: >
+      sh -c "sentry upgrade --noinput"
+
   sentry:
     image: getsentry/sentry:25.7.0
     container_name: sentry
@@ -35,22 +51,6 @@ services:
     command: >
       sh -c "exec sentry run web"
 
-  sentry-migrate:
-    image: getsentry/sentry:25.7.0
-    env_file:
-      - .env.dev
-    environment:
-      SENTRY_SECRET_KEY: 'iDW7HMa2qgFd1szNvgMMaIy2STaolSFK'
-      DATABASE_URL: postgres://postgres:password@pgvector:5432/sentry
-      SENTRY_REDIS_HOST: redis
-      SENTRY_REDIS_PORT: 6379
-    depends_on:
-      - pgvector
-      - redis
-    restart: "no"
-    command: >
-      sh -c "sentry upgrade --noinput"
-
   airflow-webserver:
     image: apache/airflow:latest
     container_name: airflow-webserver
@@ -70,6 +70,7 @@ services:
       AIRFLOW_CONN_QDRANT_REST: http://qdrant:6333
       AIRFLOW_CONN_REDIS: redis://:${REDIS_PASSWORD}@redis:6379/0
       AIRFLOW_CONN_MINIO: s3://minioadmin:minioadmin@minio:9000
+      AIRFLOW_CONN_NEO4J_DEFAULT: neo4j://neo4j:password@neo4j:7687/neo4j
       _PIP_ADDITIONAL_REQUIREMENTS:
     volumes:
       - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags
@@ -113,6 +114,7 @@ services:
       AIRFLOW_CONN_QDRANT_REST: http://qdrant:6333
       AIRFLOW_CONN_REDIS: redis://:${REDIS_PASSWORD}@redis:6379/0
       AIRFLOW_CONN_MINIO: s3://minioadmin:minioadmin@minio:9000
+      AIRFLOW_CONN_NEO4J_DEFAULT: neo4j://neo4j:password@neo4j:7687/neo4j
       _PIP_ADDITIONAL_REQUIREMENTS:
     volumes:
       - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags
@@ -154,6 +156,7 @@ services:
       AIRFLOW_CONN_QDRANT_REST: http://qdrant:6333
       AIRFLOW_CONN_REDIS: redis://:${REDIS_PASSWORD}@redis:6379/0
       AIRFLOW_CONN_MINIO: s3://minioadmin:minioadmin@minio:9000
+      AIRFLOW_CONN_NEO4J_DEFAULT: neo4j://neo4j:password@neo4j:7687/neo4j
       _PIP_ADDITIONAL_REQUIREMENTS:
     volumes:
       - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags
@@ -195,6 +198,7 @@ services:
       AIRFLOW_CONN_QDRANT_REST: http://qdrant:6333
       AIRFLOW_CONN_REDIS: redis://:${REDIS_PASSWORD}@redis:6379/0
       AIRFLOW_CONN_MINIO: s3://minioadmin:minioadmin@minio:9000
+      AIRFLOW_CONN_NEO4J_DEFAULT: neo4j://neo4j:password@neo4j:7687/neo4j
       _PIP_ADDITIONAL_REQUIREMENTS:
     volumes:
       - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags
@@ -239,6 +243,7 @@ services:
       AIRFLOW_CONN_QDRANT_REST: http://qdrant:6333
       AIRFLOW_CONN_REDIS: redis://:${REDIS_PASSWORD}@redis:6379/0
       AIRFLOW_CONN_MINIO: s3://minioadmin:minioadmin@minio:9000
+      AIRFLOW_CONN_NEO4J_DEFAULT: neo4j://neo4j:password@neo4j:7687/neo4j
       _PIP_ADDITIONAL_REQUIREMENTS:
     volumes:
       - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags
@@ -335,6 +340,7 @@ services:
       AIRFLOW_CONN_QDRANT_REST: http://qdrant:6333
       AIRFLOW_CONN_REDIS: redis://:${REDIS_PASSWORD}@redis:6379/0
       AIRFLOW_CONN_MINIO: s3://minioadmin:minioadmin@minio:9000
+      AIRFLOW_CONN_NEO4J_DEFAULT: neo4j://neo4j:password@neo4j:7687/neo4j
       _PIP_ADDITIONAL_REQUIREMENTS:
     volumes:
       - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags
