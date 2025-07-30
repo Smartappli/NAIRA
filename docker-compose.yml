@@ -1,4 +1,56 @@
 services:
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    env_file:
+      - .env.dev
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    command: server /data --console-address ":9001"
+    ports:
+      - "9001:9001"  # Console
+      - "9002:9000"  # API
+    volumes:
+      - minio_data:/data
+    restart: always
+
+  sentry:
+    image: getsentry/sentry:25.7.0
+    container_name: sentry
+    env_file:
+      - .env.dev
+    environment:
+      SENTRY_SECRET_KEY: 'iDW7HMa2qgFd1szNvgMMaIy2STaolSFK'
+      DATABASE_URL: postgres://postgres:password@pgvector:5432/sentry
+      SENTRY_REDIS_HOST: redis
+      SENTRY_REDIS_PORT: 6379
+    ports:
+      - "9000:9000"
+    depends_on:
+      - pgvector
+      - redis
+      - sentry-migrate
+    restart: always
+    command: >
+      sh -c "exec sentry run web"
+
+  sentry-migrate:
+    image: getsentry/sentry:25.7.0
+    env_file:
+      - .env.dev
+    environment:
+      SENTRY_SECRET_KEY: 'iDW7HMa2qgFd1szNvgMMaIy2STaolSFK'
+      DATABASE_URL: postgres://postgres:password@pgvector:5432/sentry
+      SENTRY_REDIS_HOST: redis
+      SENTRY_REDIS_PORT: 6379
+    depends_on:
+      - pgvector
+      - redis
+    restart: "no"
+    command: >
+      sh -c "sentry upgrade --noinput"
+
   airflow-webserver:
     image: apache/airflow:latest
     container_name: airflow-webserver
@@ -6,14 +58,18 @@ services:
       - .env.dev
     environment:
       AIRFLOW__CORE__EXECUTOR: CeleryExecutor
-      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://postgres:password@postgres/airflow
-      AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://postgres:password@postgres/airflow
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://postgres:password@pgvector/airflow
+      AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://postgres:password@pgvector/airflow
       AIRFLOW__CELERY__BROKER_URL: redis://:@redis:6379/1
       AIRFLOW__CORE__FERNET_KEY: ''
       AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
       AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
       AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session'
       AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
+      AIRFLOW_CONN_PGVECTOR_CONN: postgres://postgres:password@pgvector/vectordb
+      AIRFLOW_CONN_QDRANT_REST: http://qdrant:6333
+      AIRFLOW_CONN_REDIS: redis://:${REDIS_PASSWORD}@redis:6379/0
+      AIRFLOW_CONN_MINIO: s3://minioadmin:minioadmin@minio:9000
       _PIP_ADDITIONAL_REQUIREMENTS:
     volumes:
       - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags
@@ -30,7 +86,7 @@ services:
       start_period: 30s
     restart: always
     depends_on:
-      postgres:
+      pgvector:
         condition: service_started
       redis:
         condition: service_started
@@ -45,14 +101,18 @@ services:
       - .env.dev
     environment:
       AIRFLOW__CORE__EXECUTOR: CeleryExecutor
-      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://postgres:password@postgres/airflow
-      AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://postgres:password@postgres/airflow
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://postgres:password@pgvector/airflow
+      AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://postgres:password@pgvector/airflow
       AIRFLOW__CELERY__BROKER_URL: redis://:@redis:6379/1
       AIRFLOW__CORE__FERNET_KEY: ''
       AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
       AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
       AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session'
       AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
+      AIRFLOW_CONN_PGVECTOR_CONN: postgres://postgres:password@pgvector/vectordb
+      AIRFLOW_CONN_QDRANT_REST: http://qdrant:6333
+      AIRFLOW_CONN_REDIS: redis://:${REDIS_PASSWORD}@redis:6379/0
+      AIRFLOW_CONN_MINIO: s3://minioadmin:minioadmin@minio:9000
       _PIP_ADDITIONAL_REQUIREMENTS:
     volumes:
       - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags
@@ -68,7 +128,7 @@ services:
       start_period: 30s
     restart: always
     depends_on:
-      postgres:
+      pgvector:
         condition: service_started
       redis:
         condition: service_started
@@ -82,14 +142,18 @@ services:
       - .env.dev
     environment:
       AIRFLOW__CORE__EXECUTOR: CeleryExecutor
-      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://postgres:password@postgres/airflow
-      AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://postgres:password@postgres/airflow
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://postgres:password@pgvector/airflow
+      AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://postgres:password@pgvector/airflow
       AIRFLOW__CELERY__BROKER_URL: redis://:@redis:6379/1
       AIRFLOW__CORE__FERNET_KEY: ''
       AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
       AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
       AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session'
       AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
+      AIRFLOW_CONN_PGVECTOR_CONN: postgres://postgres:password@pgvector/vectordb
+      AIRFLOW_CONN_QDRANT_REST: http://qdrant:6333
+      AIRFLOW_CONN_REDIS: redis://:${REDIS_PASSWORD}@redis:6379/0
+      AIRFLOW_CONN_MINIO: s3://minioadmin:minioadmin@minio:9000
       _PIP_ADDITIONAL_REQUIREMENTS:
     volumes:
       - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags
@@ -105,7 +169,7 @@ services:
       start_period: 30s
     restart: always
     depends_on:
-      postgres:
+      pgvector:
         condition: service_healthy
       redis:
         condition: service_healthy
@@ -119,14 +183,18 @@ services:
       - .env.dev
     environment:
       AIRFLOW__CORE__EXECUTOR: CeleryExecutor
-      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://postgres:password@postgres/airflow
-      AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://postgres:password@postgres/airflow
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://postgres:password@pgvector/airflow
+      AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://postgres:password@pgvector/airflow
       AIRFLOW__CELERY__BROKER_URL: redis://:@redis:6379/1
       AIRFLOW__CORE__FERNET_KEY: ''
       AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
       AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
       AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session'
       AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
+      AIRFLOW_CONN_PGVECTOR_CONN: postgres://postgres:password@pgvector/vectordb
+      AIRFLOW_CONN_QDRANT_REST: http://qdrant:6333
+      AIRFLOW_CONN_REDIS: redis://:${REDIS_PASSWORD}@redis:6379/0
+      AIRFLOW_CONN_MINIO: s3://minioadmin:minioadmin@minio:9000
       _PIP_ADDITIONAL_REQUIREMENTS:
     volumes:
       - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags
@@ -142,7 +210,7 @@ services:
       start_period: 30s
     restart: always
     depends_on:
-      postgres:
+      pgvector:
         condition: service_started
       redis:
         condition: service_started
@@ -156,8 +224,8 @@ services:
       - .env.dev
     environment:
       AIRFLOW__CORE__EXECUTOR: CeleryExecutor
-      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://postgres:password@postgres/airflow
-      AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://postgres:password@postgres/airflow
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://postgres:password@pgvector/airflow
+      AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://postgres:password@pgvector/airflow
       AIRFLOW__CELERY__BROKER_URL: redis://:@redis:6379/1
       AIRFLOW__CORE__FERNET_KEY: ''
       AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
@@ -167,6 +235,10 @@ services:
       _AIRFLOW_WWW_USER_CREATE: 'true'
       _AIRFLOW_WWW_USER_USERNAME: ${_AIRFLOW_WWW_USER_USERNAME:-airflow}
       _AIRFLOW_WWW_USER_PASSWORD: ${_AIRFLOW_WWW_USER_PASSWORD:-airflow}
+      AIRFLOW_CONN_PGVECTOR_CONN: postgres://postgres:password@pgvector/vectordb
+      AIRFLOW_CONN_QDRANT_REST: http://qdrant:6333
+      AIRFLOW_CONN_REDIS: redis://:${REDIS_PASSWORD}@redis:6379/0
+      AIRFLOW_CONN_MINIO: s3://minioadmin:minioadmin@minio:9000
       _PIP_ADDITIONAL_REQUIREMENTS:
     volumes:
       - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags
@@ -239,7 +311,7 @@ services:
       "
     user: root
     depends_on:
-      postgres:
+      pgvector:
         condition: service_started
       redis:
         condition: service_started
@@ -251,14 +323,18 @@ services:
       - .env.dev
     environment:
       AIRFLOW__CORE__EXECUTOR: CeleryExecutor
-      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://postgres:password@postgres/airflow
-      AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://postgres:password@postgres/airflow
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://postgres:password@pgvector/airflow
+      AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://postgres:password@pgvector/airflow
       AIRFLOW__CELERY__BROKER_URL: redis://:@redis:6379/1
       AIRFLOW__CORE__FERNET_KEY: ''
       AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
       AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
       AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session'
       CONNECTION_CHECK_MAX_COUNT: "0"
+      AIRFLOW_CONN_PGVECTOR_CONN: postgres://postgres:password@pgvector/vectordb
+      AIRFLOW_CONN_QDRANT_REST: http://qdrant:6333
+      AIRFLOW_CONN_REDIS: redis://:${REDIS_PASSWORD}@redis:6379/0
+      AIRFLOW_CONN_MINIO: s3://minioadmin:minioadmin@minio:9000
       _PIP_ADDITIONAL_REQUIREMENTS:
     volumes:
       - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags
@@ -279,7 +355,7 @@ services:
       start_period: 30s
     restart: always
     depends_on:
-      postgres:
+      pgvector:
         condition: service_started
       redis:
         condition: service_started
@@ -322,7 +398,7 @@ services:
     volumes:
       - qdrant_data:/qdrant/storage
 
-  postgres:
+  pgvector:
     image: pgvector/pgvector:pg17
     container_name: pgvector
     env_file:
@@ -353,7 +429,7 @@ services:
     ports:
       - "5050:80"
     depends_on:
-      - postgres
+      - pgvector
     volumes:
       - pgadmin_data:/var/lib/pgadmin
 
@@ -399,3 +475,4 @@ volumes:
   pgadmin_data:
   redis_data:
   redisinsight_data:
+  minio_data:

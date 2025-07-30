@@ -1,1 +1,2 @@
 CREATE DATABASE airflow;
+CREATE DATABASE sentry;
