@@ -19,6 +19,6 @@ jobs:
 
       - name: Start services with docker-compose
         run: |
-          docker-compose -f docker-compose.yml --env-file .env.dev up -d
+          docker compose -f docker-compose.yml --env-file .env.dev up -d
           sleep 30  # Attente initiale pour les services
           docker ps  # Vérifie que tout tourne
