@@ -5,14 +5,17 @@ from django.conf import settings
 from auth.views import AuthView
 from auth.helpers import send_verification_email
 from auth.models import Profile
+from auth.backends import Argon2Backend
 import uuid
 
 
 class RegisterView(AuthView):
+    template_name = 'auth/register.html'
+    
     def get(self, request):
         if request.user.is_authenticated:
             # If the user is already logged in, redirect them to the home page or another appropriate page.
-            return redirect("index")  # Replace 'index' with the actual URL name for the home page
+                return redirect("/")  # Replace 'index' with the actual URL name for the home page
 
         # Render the login page for users who are not logged in.
         return super().get(request)
@@ -33,9 +36,10 @@ class RegisterView(AuthView):
             messages.error(request, "Username already exists.")
             return redirect("register")
 
-        # Create the user and set their password
-        created_user = User.objects.create_user(username=username, email=email, password=password)
-        created_user.set_password(password)
+        # Create the user and set their password with Argon2
+        created_user = User.objects.create_user(username=username, email=email, password=None)
+        # Hasher le mot de passe avec Argon2
+        created_user.password = Argon2Backend.hash_password(password)
         created_user.save()
 
         # Add the user to the 'client' group (or any other group you want to use as default for new users)

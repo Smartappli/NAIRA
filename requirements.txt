@@ -2,6 +2,10 @@
 Django[argon2]==5.2.4
 psycopg[binary,pool]==3.2.9
 
+# Authentication
+argon2-cffi==23.1.0
+django-cors-headers==4.7.0
+
 # Langchain
 langchain==0.3.26
 langchain-community==0.3.27

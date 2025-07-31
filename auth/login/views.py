@@ -3,13 +3,16 @@ from django.contrib.auth import authenticate, login
 from django.contrib.auth.models import User
 from django.contrib import messages
 from auth.views import AuthView
+from auth.backends import Argon2Backend
 
 
 class LoginView(AuthView):
+    template_name = 'auth/login.html'
+    
     def get(self, request):
         if request.user.is_authenticated:
             # If the user is already logged in, redirect them to the home page or another appropriate page.
-            return redirect("index")  # Replace 'index' with the actual URL name for the home page
+            return redirect("/")  # Replace 'index' with the actual URL name for the home page
 
         # Render the login page for users who are not logged in.
         return super().get(request)
@@ -21,30 +24,33 @@ class LoginView(AuthView):
 
             if not (username and password):
                 messages.error(request, "Please enter your username and password.")
-                return redirect("login")
+                return redirect("/auth/login/")
 
             if "@" in username:
                 user_email = User.objects.filter(email=username).first()
                 if user_email is None:
                     messages.error(request, "Please enter a valid email.")
-                    return redirect("login")
+                    return redirect("/auth/login/")
                 username = user_email.username
 
             user_email = User.objects.filter(username=username).first()
             if user_email is None:
                 messages.error(request, "Please enter a valid username.")
-                return redirect("login")
+                return redirect("/auth/login/")
 
-            authenticated_user = authenticate(request, username=username, password=password)
+            # Utiliser le backend Argon2 pour l'authentification
+            backend = Argon2Backend()
+            authenticated_user = backend.authenticate(request, username=username, password=password)
+            
             if authenticated_user is not None:
                 # Login the user if authentication is successful
-                login(request, authenticated_user)
+                login(request, authenticated_user, backend='auth.backends.Argon2Backend')
 
                 # Redirect to the page the user was trying to access before logging in
                 if "next" in request.POST:
                     return redirect(request.POST["next"])
                 else: # Redirect to the home page or another appropriate page
-                    return redirect("index")
+                    return redirect("/")
             else:
-                messages.error(request, "Please enter a valid username.")
-                return redirect("login")
+                messages.error(request, "Nom d'utilisateur ou mot de passe invalide.")
+                return redirect("/auth/login/")

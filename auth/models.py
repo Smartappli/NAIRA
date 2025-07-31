@@ -12,7 +12,7 @@ class Profile(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return self.user.username
+        return f'Profile de {self.user.username}'
 
     @receiver(post_save, sender=User)
     def create_profile(sender, instance, created, **kwargs):

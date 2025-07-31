@@ -1,0 +1,583 @@
+version: '3.8'
+
+services:
+  # ---- Django Backend -----
+  django:
+    build: .
+    container_name: django
+    env_file:
+      - .env.dev
+    environment:
+      DEBUG: "True"
+      SECRET_KEY: ${SECRET_KEY:-your-secret-key-here}
+      POSTGRES_DB: naira
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_HOST: pgvector
+      POSTGRES_PORT: 5432
+      BASE_URL: http://localhost:8000
+      ALLOWED_HOSTS: localhost,127.0.0.1,0.0.0.0
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+      - django_static:/app/staticfiles
+    depends_on:
+      pgvector:
+        condition: service_healthy
+    restart: always
+    command: >
+      sh -c "python manage.py migrate &&
+             python manage.py collectstatic --noinput &&
+             python manage.py runserver 0.0.0.0:8000"
+
+  # ---- Vue.js Frontend -----
+  frontend:
+    build: ./frontend
+    container_name: frontend
+    env_file:
+      - .env.dev
+    environment:
+      VITE_API_URL: http://localhost:8000
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - django
+    restart: always
+
+  # ---- Postgres/PGVector -----
+  pgvector:
+    image: pgvector/pgvector:pg17
+    container_name: pgvector
+    env_file:
+      - .env.dev
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: naira
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgvector_data:/var/lib/postgresql/data
+      - ./init-pg.sql:/docker-entrypoint-initdb.d/init-pg.sql
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: pgadmin
+    env_file:
+      - .env.dev
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@example.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "${PGADMIN_PORT:-5050}:80"
+    depends_on:
+      - pgvector
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+
+  # ---- Redis -----
+  redis:
+    image: redis:8-alpine
+    container_name: redis
+    env_file:
+      - .env.dev
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    command: redis-server --save 60 1 --loglevel warning --requirepass "${REDIS_PASSWORD}"
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: [ "CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  redisinsight:
+    image: redis/redisinsight:latest
+    container_name: redisinsight
+    env_file:
+      - .env.dev
+    ports:
+      - "5540:5540"
+    depends_on:
+      - redis
+    volumes:
+      - redisinsight_data:/data
+
+  # ---- MINIO ----
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    env_file:
+      - .env.dev
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    command: server /data --console-address ":9001"
+    ports:
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"    # Console Web
+      - "${MINIO_API_PORT:-9002}:9000"      # API S3
+    volumes:
+      - minio_data:/data
+    restart: always
+
+  create-buckets:
+    image: minio/mc
+    depends_on:
+      - minio
+    entrypoint: /bin/bash
+    command: |
+      -c "
+      sleep 5;
+      mc alias set local http://minio:9000 minioadmin minioadmin;
+      mc mb -p local/photos;
+      mc mb -p local/pdf;
+      echo 'Buckets created:';
+      mc ls local;
+      "
+    restart: no
+
+  # ---- Apache Jena ----
+  jena-fuseki:
+    image: stain/jena-fuseki
+    container_name: jena-fuseki
+    environment:
+      - ADMIN_PASSWORD=admin
+    ports:
+      - "3030:3030"
+    volumes:
+      - fuseki_data:/fuseki
+      - ./jena-data:/fuseki/data
+    restart: always
+
+  # ---- Sentry ----
+  sentry-migrate:
+    image: getsentry/sentry:25.7.0
+    env_file:
+      - .env.dev
+    environment:
+      SENTRY_SECRET_KEY: 'iDW7HMa2qgFd1szNvgMMaIy2STaolSFK'
+      DATABASE_URL: postgres://postgres:password@pgvector:5432/sentry
+      SENTRY_REDIS_HOST: redis
+      SENTRY_REDIS_PORT: 6379
+    depends_on:
+      - pgvector
+      - redis
+    restart: "no"
+    command: >
+      sh -c "sentry upgrade --noinput"
+
+  sentry:
+    image: getsentry/sentry:25.7.0
+    container_name: sentry
+    env_file:
+      - .env.dev
+    environment:
+      SENTRY_SECRET_KEY: 'iDW7HMa2qgFd1szNvgMMaIy2STaolSFK'
+      DATABASE_URL: postgres://postgres:password@pgvector:5432/sentry
+      SENTRY_REDIS_HOST: redis
+      SENTRY_REDIS_PORT: 6379
+    ports:
+      - "9000:9000"
+    depends_on:
+      - pgvector
+      - redis
+      - sentry-migrate
+    restart: always
+    command: >
+      sh -c "exec sentry run web"
+
+  # ---- Apache AirFlow ----
+  airflow-init:
+    image: apache/airflow:latest
+    container_name: airflow-init
+    env_file:
+      - .env.dev
+    environment:
+      AIRFLOW__CORE__EXECUTOR: CeleryExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://postgres:password@pgvector/airflow
+      AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://postgres:password@pgvector/airflow
+      AIRFLOW__CELERY__BROKER_URL: redis://:@redis:6379/1
+      AIRFLOW__CORE__FERNET_KEY: ''
+      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session'
+      _AIRFLOW_DB_MIGRATE: 'true'
+      _AIRFLOW_WWW_USER_CREATE: 'true'
+      _AIRFLOW_WWW_USER_USERNAME: ${_AIRFLOW_WWW_USER_USERNAME:-airflow}
+      _AIRFLOW_WWW_USER_PASSWORD: ${_AIRFLOW_WWW_USER_PASSWORD:-airflow}
+      AIRFLOW_CONN_PGVECTOR_CONN: postgres://postgres:password@pgvector/vectordb
+      AIRFLOW_CONN_QDRANT_REST: http://qdrant:6333
+      AIRFLOW_CONN_REDIS: redis://:${REDIS_PASSWORD}@redis:6379/0
+      AIRFLOW_CONN_MINIO: s3://minioadmin:minioadmin@minio:9000
+      AIRFLOW_CONN_NEO4J_DEFAULT: neo4j://neo4j:password@neo4j:7687/neo4j
+      AIRFLOW_CONN_OLLAMA_DEFAULT: http://ollama:11434
+      AIRFLOW_CONN_JENA_FUSEKI: http://admin:admin@jena-fuseki:3030
+      _PIP_ADDITIONAL_REQUIREMENTS:
+    volumes:
+      - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags
+      - ${AIRFLOW_PROJ_DIR:-.}/logs:/opt/airflow/logs
+      - ${AIRFLOW_PROJ_DIR:-.}/config:/opt/airflow/config
+      - ${AIRFLOW_PROJ_DIR:-.}/plugins:/opt/airflow/plugins
+      - ${AIRFLOW_PROJ_DIR:-.}:/sources
+    entrypoint: /bin/bash
+    command: |
+      -c "
+        function ver() {
+          printf \"%04d%04d%04d%04d\" $${1//./ }
+        }
+        airflow_version=$$(AIRFLOW__LOGGING__LOGGING_LEVEL=INFO airflow version)
+        airflow_version_comparable=$$(ver $${airflow_version})
+        min_airflow_version=2.2.0
+        min_airflow_version_comparable=$$(ver $${min_airflow_version})
+        # if (( airflow_version_comparable < min_airflow_version_comparable )); then
+        #   echo
+        #   echo -e \"\033[1;31mERROR!!!: Too old Airflow version $${airflow_version}!\e[0m\"
+        #   echo \"The minimum Airflow version supported: $${min_airflow_version}. Only use this or higher!\"
+        #   echo
+        #   exit 1
+        # fi
+        if [[ -z \"\$${AIRFLOW_UID}\" ]]; then
+          echo
+          echo -e \"\033[1;33mWARNING!!!: AIRFLOW_UID not set!\e[0m\"
+          echo \"If you are on Linux, you SHOULD follow the instructions below to set \"
+          echo \"AIRFLOW_UID environment variable, otherwise files will be owned by root.\"
+          echo \"For other operating systems you can get rid of the warning with manually created .env file:\"
+          echo \"    See: https://airflow.apache.org/docs/apache-airflow/stable/howto/docker-compose/index.html#setting-the-right-airflow-user\"
+          echo
+        fi
+        one_meg=1048576
+        mem_available=$$(($$(getconf _PHYS_PAGES) * $$(getconf PAGE_SIZE) / one_meg))
+        cpus_available=$$(grep -cE 'cpu[0-9]+' /proc/stat)
+        disk_available=$$(df / | tail -1 | awk '{print $$4}')
+        warning_resources=\"false\"
+        if (( mem_available < 4000 )) ; then
+          echo
+          echo -e \"\033[1;33mWARNING!!!: Not enough memory available for Docker.\e[0m\"
+          echo \"At least 4GB of memory required. You have $$(numfmt --to iec $$((mem_available * one_meg)))\"
+          echo
+          warning_resources=\"true\"
+        fi
+        if (( cpus_available < 2 )); then
+          echo
+          echo -e \"\033[1;33mWARNING!!!: Not enough CPUS available for Docker.\e[0m\"
+          echo \"At least 2 CPUs recommended. You have $${cpus_available}\"
+          echo
+          warning_resources=\"true\"
+        fi
+        if (( disk_available < one_meg * 10 )); then
+          echo
+          echo -e \"\033[1;33mWARNING!!!: Not enough Disk space available for Docker.\e[0m\"
+          echo \"At least 10 GBs recommended. You have $$(numfmt --to iec $$((disk_available * 1024 )))\"
+          echo
+          warning_resources=\"true\"
+        fi
+        if [[ $${warning_resources} == \"true\" ]]; then
+          echo
+          echo -e \"\033[1;33mWARNING!!!: You have not enough resources to run Airflow (see above)!\e[0m\"
+          echo \"Please follow the instructions to increase amount of resources available:\"
+          echo \"   https://airflow.apache.org/docs/apache-airflow/stable/howto/docker-compose/index.html#before-you-begin\"
+          echo
+        fi
+        mkdir -p /sources/logs /sources/dags /sources/plugins
+        chown -R \"$${AIRFLOW_UID}:0\" /sources/{logs,dags,plugins}
+        exec /entrypoint airflow db migrate && airflow users create --username admin --firstname Peter --lastname Parker --role Admin --email spiderman@superhero.org --password admin
+      "
+    user: root
+    depends_on:
+      pgvector:
+        condition: service_started
+      redis:
+        condition: service_started
+
+  airflow-webserver:
+    image: apache/airflow:latest
+    container_name: airflow-webserver
+    env_file:
+      - .env.dev
+    environment:
+      AIRFLOW__CORE__EXECUTOR: CeleryExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://postgres:password@pgvector/airflow
+      AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://postgres:password@pgvector/airflow
+      AIRFLOW__CELERY__BROKER_URL: redis://:@redis:6379/1
+      AIRFLOW__CORE__FERNET_KEY: ''
+      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session'
+      AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
+      AIRFLOW_CONN_PGVECTOR_CONN: postgres://postgres:password@pgvector/vectordb
+      AIRFLOW_CONN_QDRANT_REST: http://qdrant:6333
+      AIRFLOW_CONN_REDIS: redis://:${REDIS_PASSWORD}@redis:6379/0
+      AIRFLOW_CONN_MINIO: s3://minioadmin:minioadmin@minio:9000
+      AIRFLOW_CONN_NEO4J_DEFAULT: neo4j://neo4j:password@neo4j:7687/neo4j
+      AIRFLOW_CONN_OLLAMA_DEFAULT: http://ollama:11434
+      AIRFLOW_CONN_JENA_FUSEKI: http://admin:admin@jena-fuseki:3030
+      _PIP_ADDITIONAL_REQUIREMENTS:
+    volumes:
+      - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags
+      - ${AIRFLOW_PROJ_DIR:-.}/logs:/opt/airflow/logs
+      - ${AIRFLOW_PROJ_DIR:-.}/config:/opt/airflow/config
+      - ${AIRFLOW_PROJ_DIR:-.}/plugins:/opt/airflow/plugins
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/api/v2/monitor/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: always
+    depends_on:
+      pgvector:
+        condition: service_started
+      redis:
+        condition: service_started
+      airflow-init:
+        condition: service_completed_successfully
+    command: api-server
+
+  airflow-scheduler:
+    image: apache/airflow:latest
+    container_name: airflow-scheduler
+    env_file:
+      - .env.dev
+    environment:
+      AIRFLOW__CORE__EXECUTOR: CeleryExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://postgres:password@pgvector/airflow
+      AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://postgres:password@pgvector/airflow
+      AIRFLOW__CELERY__BROKER_URL: redis://:@redis:6379/1
+      AIRFLOW__CORE__FERNET_KEY: ''
+      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session'
+      AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
+      AIRFLOW_CONN_PGVECTOR_CONN: postgres://postgres:password@pgvector/vectordb
+      AIRFLOW_CONN_QDRANT_REST: http://qdrant:6333
+      AIRFLOW_CONN_REDIS: redis://:${REDIS_PASSWORD}@redis:6379/0
+      AIRFLOW_CONN_MINIO: s3://minioadmin:minioadmin@minio:9000
+      AIRFLOW_CONN_NEO4J_DEFAULT: neo4j://neo4j:password@neo4j:7687/neo4j
+      AIRFLOW_CONN_OLLAMA_DEFAULT: http://ollama:11434
+      AIRFLOW_CONN_JENA_FUSEKI: http://admin:admin@jena-fuseki:3030
+      _PIP_ADDITIONAL_REQUIREMENTS:
+    volumes:
+      - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags
+      - ${AIRFLOW_PROJ_DIR:-.}/logs:/opt/airflow/logs
+      - ${AIRFLOW_PROJ_DIR:-.}/config:/opt/airflow/config
+      - ${AIRFLOW_PROJ_DIR:-.}/plugins:/opt/airflow/plugins
+    command: scheduler
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8974/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: always
+    depends_on:
+      pgvector:
+        condition: service_started
+      redis:
+        condition: service_started
+      airflow-init:
+        condition: service_completed_successfully
+
+  airflow-worker:
+    image: apache/airflow:latest
+    container_name: airflow-worker
+    env_file:
+      - .env.dev
+    environment:
+      AIRFLOW__CORE__EXECUTOR: CeleryExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://postgres:password@pgvector/airflow
+      AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://postgres:password@pgvector/airflow
+      AIRFLOW__CELERY__BROKER_URL: redis://:@redis:6379/1
+      AIRFLOW__CORE__FERNET_KEY: ''
+      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session'
+      AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
+      AIRFLOW_CONN_PGVECTOR_CONN: postgres://postgres:password@pgvector/vectordb
+      AIRFLOW_CONN_QDRANT_REST: http://qdrant:6333
+      AIRFLOW_CONN_REDIS: redis://:${REDIS_PASSWORD}@redis:6379/0
+      AIRFLOW_CONN_MINIO: s3://minioadmin:minioadmin@minio:9000
+      AIRFLOW_CONN_NEO4J_DEFAULT: neo4j://neo4j:password@neo4j:7687/neo4j
+      AIRFLOW_CONN_OLLAMA_DEFAULT: http://ollama:11434
+      AIRFLOW_CONN_JENA_FUSEKI: http://admin:admin@jena-fuseki:3030
+      _PIP_ADDITIONAL_REQUIREMENTS:
+    volumes:
+      - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags
+      - ${AIRFLOW_PROJ_DIR:-.}/logs:/opt/airflow/logs
+      - ${AIRFLOW_PROJ_DIR:-.}/config:/opt/airflow/config
+      - ${AIRFLOW_PROJ_DIR:-.}/plugins:/opt/airflow/plugins
+    command: celery worker
+    healthcheck:
+      test: ["CMD-SHELL", 'celery --app airflow.providers.celery.executors.celery_executor.app inspect ping -d "celery@$${HOSTNAME}"']
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: always
+    depends_on:
+      pgvector:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      airflow-init:
+        condition: service_completed_successfully
+
+  airflow-triggerer:
+    image: apache/airflow:latest
+    container_name: airflow-triggerer
+    env_file:
+      - .env.dev
+    environment:
+      AIRFLOW__CORE__EXECUTOR: CeleryExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://postgres:password@pgvector/airflow
+      AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://postgres:password@pgvector/airflow
+      AIRFLOW__CELERY__BROKER_URL: redis://:@redis:6379/1
+      AIRFLOW__CORE__FERNET_KEY: ''
+      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session'
+      AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
+      AIRFLOW_CONN_PGVECTOR_CONN: postgres://postgres:password@pgvector/vectordb
+      AIRFLOW_CONN_QDRANT_REST: http://qdrant:6333
+      AIRFLOW_CONN_REDIS: redis://:${REDIS_PASSWORD}@redis:6379/0
+      AIRFLOW_CONN_MINIO: s3://minioadmin:minioadmin@minio:9000
+      AIRFLOW_CONN_NEO4J_DEFAULT: neo4j://neo4j:password@neo4j:7687/neo4j
+      AIRFLOW_CONN_OLLAMA_DEFAULT: http://ollama:11434
+      AIRFLOW_CONN_JENA_FUSEKI: http://admin:admin@jena-fuseki:3030
+      _PIP_ADDITIONAL_REQUIREMENTS:
+    volumes:
+      - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags
+      - ${AIRFLOW_PROJ_DIR:-.}/logs:/opt/airflow/logs
+      - ${AIRFLOW_PROJ_DIR:-.}/config:/opt/airflow/config
+      - ${AIRFLOW_PROJ_DIR:-.}/plugins:/opt/airflow/plugins
+    command: triggerer
+    healthcheck:
+      test: ["CMD-SHELL", 'airflow jobs check --job-type TriggererJob --hostname "$${HOSTNAME}"']
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: always
+    depends_on:
+      pgvector:
+        condition: service_started
+      redis:
+        condition: service_started
+      airflow-init:
+        condition: service_completed_successfully
+
+  airflow-cli:
+    image: apache/airflow:latest
+    container_name: airflow-cli
+    env_file:
+      - .env.dev
+    environment:
+      AIRFLOW__CORE__EXECUTOR: CeleryExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://postgres:password@pgvector/airflow
+      AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://postgres:password@pgvector/airflow
+      AIRFLOW__CELERY__BROKER_URL: redis://:@redis:6379/1
+      AIRFLOW__CORE__FERNET_KEY: ''
+      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session'
+      CONNECTION_CHECK_MAX_COUNT: "0"
+      AIRFLOW_CONN_PGVECTOR_CONN: postgres://postgres:password@pgvector/vectordb
+      AIRFLOW_CONN_QDRANT_REST: http://qdrant:6333
+      AIRFLOW_CONN_REDIS: redis://:${REDIS_PASSWORD}@redis:6379/0
+      AIRFLOW_CONN_MINIO: s3://minioadmin:minioadmin@minio:9000
+      AIRFLOW_CONN_NEO4J_DEFAULT: neo4j://neo4j:password@neo4j:7687/neo4j
+      AIRFLOW_CONN_OLLAMA_DEFAULT: http://ollama:11434
+      AIRFLOW_CONN_JENA_FUSEKI: http://admin:admin@jena-fuseki:3030
+      _PIP_ADDITIONAL_REQUIREMENTS:
+    volumes:
+      - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags
+      - ${AIRFLOW_PROJ_DIR:-.}/logs:/opt/airflow/logs
+      - ${AIRFLOW_PROJ_DIR:-.}/config:/opt/airflow/config
+      - ${AIRFLOW_PROJ_DIR:-.}/plugins:/opt/airflow/plugins
+    command: |
+      bash -c "
+        airflow celery flower
+      "
+    ports:
+      - "5566:5555"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:5566/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: always
+    depends_on:
+      pgvector:
+        condition: service_started
+      redis:
+        condition: service_started
+      airflow-init:
+        condition: service_completed_successfully
+
+  # ---- NEO4J ----
+  neo4j:
+    image: neo4j:latest
+    container_name: neo4j
+    environment:
+      NEO4J_AUTH: neo4j/newpassword  # username:password
+    ports:
+      - "7474:7474"   # HTTP interface (browser)
+      - "7687:7687"   # Bolt protocol (drivers)
+    volumes:
+      - neo4j_data:/data
+      - neo4j_logs:/logs
+      - neo4j_plugins:/plugins
+    restart: always
+
+  # ---- Ollamam ----
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    env_file:
+      - .env.dev
+    ports:
+      - "${OLLAMA_PORT:-11434}:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+
+  # ---- Qdrant ----
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: qdrant
+    env_file:
+      - .env.dev
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+
+volumes:
+  airflow:
+  django_static:
+  neo4j_data:
+  neo4j_logs:
+  neo4j_plugins:
+  ollama_data:
+  qdrant_data:
+  pgvector_data:
+  pgadmin_data:
+  redis_data:
+  redisinsight_data:
+  minio_data:
+  fuseki_data: 

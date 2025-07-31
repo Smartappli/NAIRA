@@ -5,6 +5,7 @@ from .login.views import LoginView
 from .forgot_password.views import ForgetPasswordView
 from .reset_password.views import ResetPasswordView
 from .verify_email.views import  VerifyEmailTokenView , VerifyEmailView, SendVerificationView
+from . import api_views
 
 
 urlpatterns = [
@@ -55,5 +56,13 @@ urlpatterns = [
         ResetPasswordView.as_view(template_name="auth/reset_password.html"),
         name="reset-password",
     ),
+
+    # API endpoints
+    path("api/signup/", api_views.api_signup, name="api-signup"),
+    path("api/login/", api_views.api_login, name="api-login"),
+    path("api/logout/", api_views.api_logout, name="api-logout"),
+    path("api/profile/", api_views.api_profile, name="api-profile"),
+    path("api/verify-email/", api_views.api_verify_email, name="api-verify-email"),
+    path("api/forgot-password/", api_views.api_forgot_password, name="api-forgot-password"),
 
 ]

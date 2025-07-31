@@ -1,4 +1,51 @@
 services:
+  # ---- Django Backend -----
+  django:
+    build: .
+    container_name: django
+    env_file:
+      - .env.dev
+    environment:
+      DEBUG: "True"
+      SECRET_KEY: ${SECRET_KEY:-your-secret-key-here}
+      POSTGRES_DB: naira
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_HOST: pgvector
+      POSTGRES_PORT: 5432
+      BASE_URL: http://localhost:8000
+      ALLOWED_HOSTS: localhost,127.0.0.1,0.0.0.0
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+      - django_static:/app/staticfiles
+    depends_on:
+      pgvector:
+        condition: service_healthy
+    restart: always
+    command: >
+      sh -c "python manage.py migrate &&
+             python manage.py collectstatic --noinput &&
+             python manage.py runserver 0.0.0.0:8000"
+
+  # ---- Vue.js Frontend -----
+  frontend:
+    build: ./frontend
+    container_name: frontend
+    env_file:
+      - .env.dev
+    environment:
+      VITE_API_URL: http://localhost:8000
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - django
+    restart: always
+
   # ---- Postgres/PGVector -----
   pgvector:
     image: pgvector/pgvector:pg17
@@ -520,6 +567,7 @@ services:
 
 volumes:
   airflow:
+  django_static:
   neo4j_data:
   neo4j_logs:
   neo4j_plugins:
