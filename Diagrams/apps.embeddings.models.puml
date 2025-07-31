@@ -4,7 +4,7 @@ skinparam classAttributeIconSize 0
 skinparam classFontSize 14
 skinparam classFontColor #000000
 
-title Embedding Models for RAG System
+title Embedding Models for NAIRA
 
 ' --- Base Classes ---
 class BaseModel {

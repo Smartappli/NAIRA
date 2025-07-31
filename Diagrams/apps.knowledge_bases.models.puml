@@ -4,7 +4,7 @@ skinparam classAttributeIconSize 0
 skinparam classFontSize 14
 skinparam classFontColor #000000
 
-title Knowledge Base Models for RAG System
+title Knowledge Base Models for NAIRA
 
 ' --- Base Classes ---
 class SharedModel {
