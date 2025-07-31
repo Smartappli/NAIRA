@@ -1,0 +1,101 @@
+@startuml
+skinparam backgroundColor #FAFAFA
+skinparam classAttributeIconSize 0
+skinparam classFontSize 14
+skinparam classFontColor #000000
+
+title Embedding Models for RAG System
+
+' --- Base Classes ---
+class BaseModel {
+  + created_at : DateTime
+  + updated_at : DateTime
+  + id : UUID
+}
+
+class ProcessingStatusModel {
+  + status : String
+  + status_message : String
+  + processing_started_at : DateTime
+  + processing_completed_at : DateTime
+  + mark_processing(message) : void
+  + mark_completed(message) : void
+  + mark_failed(message) : void
+}
+
+class MetadataModel {
+  + metadata : JSON
+  + get_metadata(key, default) : Any
+  + set_metadata(key, value) : void
+  + update_metadata(data) : void
+}
+
+' --- EmbeddingModel Class ---
+class EmbeddingModel {
+  + name : String
+  + provider : String
+  + model_id : String
+  + dimension : Integer
+  + max_tokens : Integer
+  + description : Text
+  + is_active : Boolean
+  + avg_processing_time : Float
+  + usage_count : BigInteger
+  + config : JSON
+  + increment_usage() : void
+  + update_processing_time(new_time) : void
+}
+
+' --- DocumentEmbedding Class ---
+class DocumentEmbedding {
+  + document : Document
+  + chunk_index : Integer
+  + text_content : Text
+  + embedding_model : EmbeddingModel
+  + embedding_vector : Float[]
+  + chunk_metadata : JSON
+  + processing_time : Float
+  + token_count : Integer
+}
+
+' --- QueryEmbedding Class ---
+class QueryEmbedding {
+  + query_text : Text
+  + query_hash : String
+  + embedding_model : EmbeddingModel
+  + embedding_vector : Float[]
+  + hit_count : Integer
+  + last_used : DateTime
+  + increment_hit_count() : void
+}
+
+' --- EmbeddingJob Class ---
+class EmbeddingJob {
+  + job_type : String
+  + embedding_model : EmbeddingModel
+  + parameters : JSON
+  + total_items : Integer
+  + processed_items : Integer
+  + failed_items : Integer
+  + started_at : DateTime
+  + completed_at : DateTime
+  + result_data : JSON
+  + progress_percentage : Float
+  + mark_item_processed() : void
+  + mark_item_failed() : void
+}
+
+' --- Relationships ---
+BaseModel <|-- EmbeddingModel
+BaseModel <|-- DocumentEmbedding
+BaseModel <|-- QueryEmbedding
+BaseModel <|-- EmbeddingJob
+ProcessingStatusModel <|-- EmbeddingJob
+MetadataModel <|-- EmbeddingModel
+MetadataModel <|-- DocumentEmbedding
+MetadataModel <|-- QueryEmbedding
+EmbeddingModel --> DocumentEmbedding : has
+EmbeddingModel --> QueryEmbedding : has
+EmbeddingModel --> EmbeddingJob : used_in
+
+@enduml
