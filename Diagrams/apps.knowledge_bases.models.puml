@@ -1,0 +1,116 @@
+@startuml
+skinparam backgroundColor #FAFAFA
+skinparam classAttributeIconSize 0
+skinparam classFontSize 14
+skinparam classFontColor #000000
+
+title Knowledge Base Models for RAG System
+
+' --- Base Classes ---
+class SharedModel {
+  + owner : User
+  + is_public : Boolean
+  + created_at : DateTime
+  + updated_at : DateTime
+}
+
+class ProcessingStatusModel {
+  + status : String
+  + status_message : String
+  + processing_started_at : DateTime
+  + processing_completed_at : DateTime
+  + mark_processing(message) : void
+  + mark_completed(message) : void
+  + mark_failed(message) : void
+}
+
+class MetadataModel {
+  + metadata : JSON
+  + get_metadata(key, default) : Any
+  + set_metadata(key, value) : void
+  + update_metadata(data) : void
+}
+
+class VersionedModel {
+  + version : Integer
+  + version_name : String
+  + created_at : DateTime
+  + created_by : User
+}
+
+class SoftDeleteModel {
+  + is_deleted : Boolean
+  + deleted_at : DateTime
+  + soft_delete() : void
+}
+
+' --- KnowledgeBase Class ---
+class KnowledgeBase {
+  + name : String
+  + description : Text
+  + embedding_model : String
+  + embedding_dimension : Integer
+  + chunk_size : Integer
+  + chunk_overlap : Integer
+  + vector_store_type : String
+  + document_count : Integer
+  + chunk_count : Integer
+  + total_tokens : BigInteger
+  + avg_chunk_quality : Float
+  + last_indexed_at : DateTime
+  + increment_document_count() : void
+  + decrement_document_count() : void
+  + update_statistics() : void
+  + get_embedding_config() : JSON
+  + get_vector_store_config() : JSON
+}
+
+' --- KnowledgeBaseTag Class ---
+class KnowledgeBaseTag {
+  + name : String
+  + color : String
+  + created_at : DateTime
+}
+
+' --- KnowledgeBaseTagRelation Class ---
+class KnowledgeBaseTagRelation {
+  + knowledge_base : KnowledgeBase
+  + tag : KnowledgeBaseTag
+  + created_at : DateTime
+}
+
+' --- KnowledgeBaseAccess Class ---
+class KnowledgeBaseAccess {
+  + knowledge_base : KnowledgeBase
+  + user : User
+  + access_type : String
+  + ip_address : String
+  + user_agent : Text
+  + created_at : DateTime
+}
+
+' --- KnowledgeBaseVersion Class ---
+class KnowledgeBaseVersion {
+  + knowledge_base : KnowledgeBase
+  + name : String
+  + description : Text
+  + changes : Text
+  + document_count_snapshot : Integer
+  + chunk_count_snapshot : Integer
+  + created_by : User
+}
+
+' --- Relationships ---
+SharedModel <|-- KnowledgeBase
+ProcessingStatusModel <|-- KnowledgeBase
+MetadataModel <|-- KnowledgeBase
+SoftDeleteModel <|-- KnowledgeBase
+VersionedModel <|-- KnowledgeBaseVersion
+MetadataModel <|-- KnowledgeBaseVersion
+
+KnowledgeBase --> KnowledgeBaseTagRelation : has
+KnowledgeBaseTag --> KnowledgeBaseTagRelation : has
+KnowledgeBase --> KnowledgeBaseAccess : has
+KnowledgeBase --> KnowledgeBaseVersion : has
+
+@enduml
