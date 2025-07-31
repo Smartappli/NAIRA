@@ -1,0 +1,102 @@
+@startuml
+package django.contrib.contenttypes.models {
+  class ContentType {
+    + id: AutoField
+    + app_label: CharField
+    + model: CharField
+    --
+    + get_by_natural_key(app_label, model)
+    + natural_key()
+    + __str__()
+    + save()
+  }
+}
+
+package django.contrib.auth.models {
+
+  class Permission {
+    + id: AutoField
+    + name: CharField
+    + content_type: ForeignKey<ContentType>
+    + codename: CharField
+    --
+    + __str__()
+    + natural_key()
+    + get_by_natural_key(app_label, codename)
+    + save()
+  }
+
+  class Group {
+    + id: AutoField
+    + name: CharField
+    --
+    + permissions: ManyToMany<Permission>
+    + add_permission(permission)
+    + remove_permission(permission)
+    + clear_permissions()
+    + get_permissions()
+    + __str__()
+    + save()
+  }
+
+  class User {
+    + id: AutoField
+    + username: CharField
+    + first_name: CharField
+    + last_name: CharField
+    + email: EmailField
+    + password: CharField
+    + is_staff: BooleanField
+    + is_active: BooleanField
+    + is_superuser: BooleanField
+    + last_login: DateTimeField
+    + date_joined: DateTimeField
+    --
+    + groups: ManyToMany<Group>
+    + user_permissions: ManyToMany<Permission>
+    --
+    + get_user_permissions(obj=None)
+    + get_group_permissions(obj=None)
+    + get_all_permissions(obj=None)
+    + has_perm(perm, obj=None)
+    + has_perms(perm_list, obj=None)
+    + has_module_perms(app_label)
+    + set_password(raw_password)
+    + check_password(raw_password)
+    + get_full_name()
+    + get_short_name()
+    + __str__()
+    + save()
+  }
+
+  class auth_user_groups {
+    + id: AutoField
+    + user_id: FK to User
+    + group_id: FK to Group
+  }
+
+  class auth_user_user_permissions {
+    + id: AutoField
+    + user_id: FK to User
+    + permission_id: FK to Permission
+  }
+
+  class auth_group_permissions {
+    + id: AutoField
+    + group_id: FK to Group
+    + permission_id: FK to Permission
+  }
+
+  ' Relations
+  User -- auth_user_groups : "1 ← user_id"
+  Group -- auth_user_groups : "1 ← group_id"
+
+  User -- auth_user_user_permissions : "1 ← user_id"
+  Permission -- auth_user_user_permissions : "1 ← permission_id"
+
+  Group -- auth_group_permissions : "1 ← group_id"
+  Permission -- auth_group_permissions : "1 ← permission_id"
+
+  Permission --> ContentType : "FK"
+}
+@enduml
