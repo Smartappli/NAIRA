@@ -100,6 +100,19 @@ services:
       "
     restart: no
 
+  # ---- Apache Jena ----
+  jena-fuseki:
+    image: stain/jena-fuseki
+    container_name: jena-fuseki
+    environment:
+      - ADMIN_PASSWORD=admin
+    ports:
+      - "3030:3030"
+    volumes:
+      - fuseki_data:/fuseki
+      - ./jena-data:/fuseki/data
+    restart: always
+
   # ---- Sentry ----
   sentry-migrate:
     image: getsentry/sentry:25.7.0
@@ -162,6 +175,7 @@ services:
       AIRFLOW_CONN_MINIO: s3://minioadmin:minioadmin@minio:9000
       AIRFLOW_CONN_NEO4J_DEFAULT: neo4j://neo4j:password@neo4j:7687/neo4j
       AIRFLOW_CONN_OLLAMA_DEFAULT: http://ollama:11434
+      AIRFLOW_CONN_JENA_FUSEKI: http://admin:admin@jena-fuseki:3030
       _PIP_ADDITIONAL_REQUIREMENTS:
     volumes:
       - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags
@@ -260,6 +274,7 @@ services:
       AIRFLOW_CONN_MINIO: s3://minioadmin:minioadmin@minio:9000
       AIRFLOW_CONN_NEO4J_DEFAULT: neo4j://neo4j:password@neo4j:7687/neo4j
       AIRFLOW_CONN_OLLAMA_DEFAULT: http://ollama:11434
+      AIRFLOW_CONN_JENA_FUSEKI: http://admin:admin@jena-fuseki:3030
       _PIP_ADDITIONAL_REQUIREMENTS:
     volumes:
       - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags
@@ -305,6 +320,7 @@ services:
       AIRFLOW_CONN_MINIO: s3://minioadmin:minioadmin@minio:9000
       AIRFLOW_CONN_NEO4J_DEFAULT: neo4j://neo4j:password@neo4j:7687/neo4j
       AIRFLOW_CONN_OLLAMA_DEFAULT: http://ollama:11434
+      AIRFLOW_CONN_JENA_FUSEKI: http://admin:admin@jena-fuseki:3030
       _PIP_ADDITIONAL_REQUIREMENTS:
     volumes:
       - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags
@@ -348,6 +364,7 @@ services:
       AIRFLOW_CONN_MINIO: s3://minioadmin:minioadmin@minio:9000
       AIRFLOW_CONN_NEO4J_DEFAULT: neo4j://neo4j:password@neo4j:7687/neo4j
       AIRFLOW_CONN_OLLAMA_DEFAULT: http://ollama:11434
+      AIRFLOW_CONN_JENA_FUSEKI: http://admin:admin@jena-fuseki:3030
       _PIP_ADDITIONAL_REQUIREMENTS:
     volumes:
       - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags
@@ -391,6 +408,7 @@ services:
       AIRFLOW_CONN_MINIO: s3://minioadmin:minioadmin@minio:9000
       AIRFLOW_CONN_NEO4J_DEFAULT: neo4j://neo4j:password@neo4j:7687/neo4j
       AIRFLOW_CONN_OLLAMA_DEFAULT: http://ollama:11434
+      AIRFLOW_CONN_JENA_FUSEKI: http://admin:admin@jena-fuseki:3030
       _PIP_ADDITIONAL_REQUIREMENTS:
     volumes:
       - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags
@@ -434,6 +452,7 @@ services:
       AIRFLOW_CONN_MINIO: s3://minioadmin:minioadmin@minio:9000
       AIRFLOW_CONN_NEO4J_DEFAULT: neo4j://neo4j:password@neo4j:7687/neo4j
       AIRFLOW_CONN_OLLAMA_DEFAULT: http://ollama:11434
+      AIRFLOW_CONN_JENA_FUSEKI: http://admin:admin@jena-fuseki:3030
       _PIP_ADDITIONAL_REQUIREMENTS:
     volumes:
       - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags
@@ -511,3 +530,4 @@ volumes:
   redis_data:
   redisinsight_data:
   minio_data:
+  fuseki_data:
