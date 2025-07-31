@@ -1,0 +1,24 @@
+# .github/workflows/validate-docker-compose.yml
+name: Validate Docker Compose Services
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  compose-up:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Start services with docker-compose
+        run: |
+          docker-compose -f docker-compose.yml --env-file .env.dev up -d
+          sleep 30  # Attente initiale pour les services
+          docker ps  # Vérifie que tout tourne
