@@ -1,0 +1,77 @@
+@startuml
+skinparam backgroundColor #FAFAFA
+skinparam classAttributeIconSize 0
+skinparam classFontSize 14
+skinparam classFontColor #000000
+
+title User Models for NAIRA
+
+' --- Base Classes ---
+class BaseModel {
+  + created_at : DateTime
+  + updated_at : DateTime
+}
+
+class MetadataModel {
+  + metadata : JSON
+  + get_metadata(key, default) : Any
+  + set_metadata(key, value) : void
+  + update_metadata(data) : void
+}
+
+' --- User Class ---
+class User {
+  + email : String
+  + first_name : String
+  + last_name : String
+  + bio : Text
+  + avatar : Image
+  + is_verified : Boolean
+  + preferred_language : String
+  + timezone : String
+  + api_key : String
+  + monthly_token_limit : Integer
+  + monthly_tokens_used : Integer
+  + last_token_reset : DateTime
+  + full_name() : String
+  + display_name() : String
+  + has_api_access() : Boolean
+  + can_use_tokens(num_tokens) : Boolean
+  + use_tokens(num_tokens) : Boolean
+  + reset_monthly_tokens() : void
+  + generate_api_key() : String
+}
+
+' --- UserProfile Class ---
+class UserProfile {
+  + user : User
+  + default_embedding_model : String
+  + default_llm_model : String
+  + default_chunk_size : Integer
+  + default_chunk_overlap : Integer
+  + theme : String
+  + notifications_enabled : Boolean
+  + email_notifications : Boolean
+}
+
+' --- UserSession Class ---
+class UserSession {
+  + user : User
+  + session_key : String
+  + ip_address : String
+  + user_agent : Text
+  + is_active : Boolean
+  + last_activity : DateTime
+}
+
+' --- Relationships ---
+BaseModel <|-- User
+BaseModel <|-- UserProfile
+BaseModel <|-- UserSession
+MetadataModel <|-- User
+MetadataModel <|-- UserProfile
+
+UserProfile --> User : has
+UserSession --> User : has
+
+@enduml
