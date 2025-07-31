@@ -161,6 +161,7 @@ services:
       AIRFLOW_CONN_REDIS: redis://:${REDIS_PASSWORD}@redis:6379/0
       AIRFLOW_CONN_MINIO: s3://minioadmin:minioadmin@minio:9000
       AIRFLOW_CONN_NEO4J_DEFAULT: neo4j://neo4j:password@neo4j:7687/neo4j
+      AIRFLOW_CONN_OLLAMA_DEFAULT: http://ollama:11434
       _PIP_ADDITIONAL_REQUIREMENTS:
     volumes:
       - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags
@@ -258,6 +259,7 @@ services:
       AIRFLOW_CONN_REDIS: redis://:${REDIS_PASSWORD}@redis:6379/0
       AIRFLOW_CONN_MINIO: s3://minioadmin:minioadmin@minio:9000
       AIRFLOW_CONN_NEO4J_DEFAULT: neo4j://neo4j:password@neo4j:7687/neo4j
+      AIRFLOW_CONN_OLLAMA_DEFAULT: http://ollama:11434
       _PIP_ADDITIONAL_REQUIREMENTS:
     volumes:
       - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags
@@ -302,6 +304,7 @@ services:
       AIRFLOW_CONN_REDIS: redis://:${REDIS_PASSWORD}@redis:6379/0
       AIRFLOW_CONN_MINIO: s3://minioadmin:minioadmin@minio:9000
       AIRFLOW_CONN_NEO4J_DEFAULT: neo4j://neo4j:password@neo4j:7687/neo4j
+      AIRFLOW_CONN_OLLAMA_DEFAULT: http://ollama:11434
       _PIP_ADDITIONAL_REQUIREMENTS:
     volumes:
       - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags
@@ -344,6 +347,7 @@ services:
       AIRFLOW_CONN_REDIS: redis://:${REDIS_PASSWORD}@redis:6379/0
       AIRFLOW_CONN_MINIO: s3://minioadmin:minioadmin@minio:9000
       AIRFLOW_CONN_NEO4J_DEFAULT: neo4j://neo4j:password@neo4j:7687/neo4j
+      AIRFLOW_CONN_OLLAMA_DEFAULT: http://ollama:11434
       _PIP_ADDITIONAL_REQUIREMENTS:
     volumes:
       - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags
@@ -386,6 +390,7 @@ services:
       AIRFLOW_CONN_REDIS: redis://:${REDIS_PASSWORD}@redis:6379/0
       AIRFLOW_CONN_MINIO: s3://minioadmin:minioadmin@minio:9000
       AIRFLOW_CONN_NEO4J_DEFAULT: neo4j://neo4j:password@neo4j:7687/neo4j
+      AIRFLOW_CONN_OLLAMA_DEFAULT: http://ollama:11434
       _PIP_ADDITIONAL_REQUIREMENTS:
     volumes:
       - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags
@@ -428,6 +433,7 @@ services:
       AIRFLOW_CONN_REDIS: redis://:${REDIS_PASSWORD}@redis:6379/0
       AIRFLOW_CONN_MINIO: s3://minioadmin:minioadmin@minio:9000
       AIRFLOW_CONN_NEO4J_DEFAULT: neo4j://neo4j:password@neo4j:7687/neo4j
+      AIRFLOW_CONN_OLLAMA_DEFAULT: http://ollama:11434
       _PIP_ADDITIONAL_REQUIREMENTS:
     volumes:
       - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags
@@ -439,9 +445,9 @@ services:
         airflow celery flower
       "
     ports:
-      - "5555:5555"
+      - "5566:5555"
     healthcheck:
-      test: ["CMD", "curl", "--fail", "http://localhost:5555/"]
+      test: ["CMD", "curl", "--fail", "http://localhost:5566/"]
       interval: 30s
       timeout: 10s
       retries: 5

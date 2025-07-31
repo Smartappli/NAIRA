@@ -1,4 +1,3 @@
-# .github/workflows/validate-docker-compose.yml
 name: Validate Docker Compose Services
 
 on:
