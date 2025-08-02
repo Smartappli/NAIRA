@@ -90,7 +90,7 @@ services:
     depends_on:
       redis:
         condition: service_healthy
-    restart: unless-stopped
+    restart: always
 
   # ============================================================================
   # OBJECT STORAGE
@@ -132,25 +132,28 @@ services:
       set -e
       echo 'Waiting for MinIO to be ready...'
       sleep 15
-      
       echo 'Testing MinIO connection...'
-      until mc alias set local http://minio:9000 $$\{MINIO_ROOT_USER:-minio_admin_2024\} $$\{MINIO_ROOT_PASSWORD:-minio_secure_password_2024\}; do
+      until mc alias set local http://minio:9000 $${MINIO_ROOT_USER:-minio_admin_2024} $${MINIO_ROOT_PASSWORD:-minio_secure_password_2024}; do
         echo 'MinIO not ready yet, waiting 5 seconds...'
         sleep 5
       done
-      
       echo 'MinIO is ready, creating buckets...'
-      
       # Create buckets from environment variable
-      IFS=',' read -ra BUCKETS <<< $$\{MINIO_DEFAULT_BUCKETS:-photos,pdf,documents,models,datasets\}
-      for bucket in $$\{BUCKETS[@]\}; do
-        echo \"Creating bucket: $$\{bucket\}\"
-        mc mb -p local/$$\{bucket\} || echo \"Bucket $$\{bucket\} already exists\"
+      BUCKET_LIST=\"$${MINIO_DEFAULT_BUCKETS:-photos,pdf,documents,models,datasets}\"
+      echo \"Bucket list: $$BUCKET_LIST\"
+      IFS=',' read -ra BUCKETS <<< \"$$BUCKET_LIST\"
+      for bucket in \"$${BUCKETS[@]}\"; do
+        # Trim whitespace from bucket name
+        bucket=$$(echo \"$$bucket\" | tr -d '[:space:]')
+        echo \"Creating bucket: [$$bucket]\"
+        if [ -n \"$$bucket\" ]; then
+          mc mb -p local/$$bucket || echo \"Bucket $$bucket already exists\"
+        else
+          echo \"Skipping empty bucket name\"
+        fi
       done
-      
       echo 'Listing all buckets:'
       mc ls local || echo 'Could not list buckets'
-      
       echo 'Bucket creation process completed!'
       "
     restart: "no"
@@ -168,13 +171,9 @@ services:
       - ./jena-data:/fuseki/data
     restart: always
 
-  # ============================================================================
-  # ERROR TRACKING
-  # ============================================================================
-
+  # ---- Sentry ----
   sentry-migrate:
     image: getsentry/sentry:25.7.0
-    container_name: sentry-migrate
     env_file:
       - .env.dev
     environment:
