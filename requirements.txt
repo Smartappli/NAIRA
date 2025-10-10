@@ -7,7 +7,7 @@ langchain==0.3.27
 langchain-community==0.3.27
 
 # REST API
-fastapi==0.116.1
+fastapi==0.118.3
 uvicorn==0.35.0
 
 # GraphQL
