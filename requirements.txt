@@ -4,7 +4,7 @@ psycopg[binary,pool]==3.2.11
 
 # Langchain
 langchain==1.0.3
-langchain-community==0.4
+langchain-community==0.4.1
 
 # REST API
 fastapi==0.120.4
