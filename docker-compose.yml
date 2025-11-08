@@ -4,7 +4,7 @@ services:
   # ============================================================================
 
   pgvector:
-    image: pgvector/pgvector:pg17
+    image: pgvector/pgvector:pg18-trixie
     container_name: pgvector
     env_file:
       - .env.dev
