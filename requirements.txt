@@ -15,5 +15,5 @@ graphene==3.4.3
 graphene-django==3.2.3
 
 # Ollama
-ollama==0.6.0
+ollama==0.6.1
 
