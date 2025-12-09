@@ -1,5 +1,5 @@
 # Core
-Django[argon2]==5.2.8
+Django[argon2]==5.2.9
 psycopg[binary,pool]==3.3.2
 
 # Langchain
