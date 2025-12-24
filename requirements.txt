@@ -8,7 +8,7 @@ langchain-community==0.4.1
 
 # REST API
 fastapi==0.126.0
-uvicorn==0.39.0
+uvicorn==0.40.0
 
 # GraphQL
 graphene==3.4.3
