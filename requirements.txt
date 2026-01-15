@@ -3,7 +3,7 @@ Django[argon2]==6.0
 psycopg[binary,pool]==3.3.2
 
 # Langchain
-langchain==1.2.0
+langchain==1.2.4
 langchain-community==0.4.1
 
 # REST API
