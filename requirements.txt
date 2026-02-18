@@ -1,6 +1,6 @@
 # Core
 Django[argon2]==6.0.2
-psycopg[binary,pool]==3.3.2
+psycopg[binary,pool]==3.3.3
 
 # Langchain
 langchain==1.2.10
